@@ -136,25 +136,35 @@ def setup_ai_mqtt_handler(mqtt_bot, voice, audio):
     def on_ai_command(payload):
         action = payload.get("action")
         menu_context = payload.get("menu")
-        
+
         if action == "PROCESS_TEXT":
             user_text = payload.get("text", "")
             if user_text:
-                print(f"[UI Command] User typed: {user_text}")
+                print("\n" + "-" * 50)
+                print(f"⌨️  [UI] User typed: {user_text}")
+                print("🤔 Thinking...")
                 reply = voice.get_gemini_response(user_text, menu_context)
+                print("🔊 Responding...")
                 audio.speak_text(reply)
-                
+                print("-" * 50)
+
         elif action == "START_VOICE_MIC":
-            print("[UI Command] User pressed Mic button. Activating hardware mic...")
-            audio.speak_text("I am listening.") 
+            print("\n" + "-" * 50)
+            print("🎙️  [UI] Mic button pressed. Activating hardware mic...")
+            audio.speak_text("I am listening.")
+            print("👂 Listening for your command...")
             user_text = voice.listen_and_convert_to_text(timeout=5, phrase_time_limit=8)
-            
+
             if user_text:
+                print(f"👤 You said: {user_text}")
+                print("🤔 Thinking...")
                 reply = voice.get_gemini_response(user_text, menu_context)
+                print("🔊 Responding...")
                 audio.speak_text(reply)
             else:
-                print("No speech detected after UI trigger.")
-    
+                print("⚠️  No speech detected after UI trigger.")
+            print("-" * 50)
+
     mqtt_bot.set_ai_callback(on_ai_command)
 # ----------------------------------------
 
@@ -238,30 +248,41 @@ def main():
         try:
             if voice:
                 if USE_WAKE_WORD:
+                    print("\n" + "=" * 50)
+                    print(f"💤 Idle — say '{WAKE_WORD}' to wake AURA...")
                     voice.listen_for_wake_word(WAKE_WORD)
+                    print("✅ Wake word detected!")
                     audio.speak_text("Yes, how can I help you?")
 
+                print("👂 Listening for your command...")
                 user_text = voice.listen_and_convert_to_text()
 
                 if not user_text:
+                    print("⚠️  Didn't catch that — listening again.")
                     continue
 
+                print(f"👤 You said: {user_text}")
+
                 if user_text.lower() in ["exit", "quit", "stop", "goodbye", "bye"]:
+                    print("👋 Exit phrase detected — ending conversation.")
                     goodbye_text = "Goodbye. Have a nice day."
                     audio.speak_text(goodbye_text)
                     break
 
+                print("🤔 Thinking...")
                 reply = voice.get_gemini_response(user_text)
+                print("🔊 Responding...")
                 audio.speak_text(reply)
+                print("=" * 50)
             else:
                 # Keep main thread alive while background workers handle hardware
                 time.sleep(0.1)
 
         except KeyboardInterrupt:
-            print("\nProgram stopped by user.")
+            print("\n🛑 Program stopped by user.")
             break
         except Exception as e:
-            print(f"Main controller error: {e}")
+            print(f"❌ Main controller error: {e}")
 
     # Graceful Shutdown
     stop_event.set()
