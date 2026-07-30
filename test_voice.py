@@ -5,7 +5,7 @@ import speech_recognition as sr
 from dotenv import load_dotenv
 
 from audio_module import AudioModule
-from config import GEMINI_API_KEY, MIC_DEVICE_INDEX, USE_WAKE_WORD, WAKE_WORD
+from config import GEMINI_API_KEY, MIC_DEVICE_INDEX, WAKE_WORD
 from voice_module import VoiceModule
 
 EXIT_PHRASES = {"exit", "quit", "stop", "goodbye", "bye"}
@@ -40,7 +40,7 @@ def resolve_wake_word(args: argparse.Namespace) -> bool:
         return True
     if args.no_wake_word:
         return False
-    return USE_WAKE_WORD
+    return False
 
 
 def print_mic_check() -> None:
@@ -104,17 +104,18 @@ def main() -> None:
     args = parse_args()
     use_wake_word = resolve_wake_word(args)
 
-    print_mic_check()
+    #print_mic_check()
 
     audio = AudioModule()
     voice = VoiceModule(gemini_api_key=api_key)
 
+    print_mic_check()
     print("\nFull pipeline test started.")
     print("Say 'exit', 'stop', or 'goodbye' to end, or press Ctrl+C.")
     if use_wake_word:
         print(f"Wake word mode enabled: '{WAKE_WORD}'.")
     else:
-        print("Wake word mode disabled — speak your command directly.")
+        print("Wake word mode disabled — calibrating and listening directly for your command.")
 
     try:
         while True:
