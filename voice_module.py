@@ -1,6 +1,6 @@
 import speech_recognition as sr
 import google.generativeai as genai
-from config import POSSIBLE_WAKE_PHRASES
+from config import POSSIBLE_WAKE_PHRASES, MIC_DEVICE_INDEX
 
 
 class VoiceModule:
@@ -21,7 +21,7 @@ class VoiceModule:
         """
         print(f"Waiting for wake word: '{wake_word}'")
 
-        with sr.Microphone() as source:
+        with sr.Microphone(device_index=MIC_DEVICE_INDEX) as source:
             self.recognizer.adjust_for_ambient_noise(source, duration=1)
 
             while True:
@@ -49,7 +49,7 @@ class VoiceModule:
         Listen once and convert speech to text.
         """
         try:
-            with sr.Microphone() as source:
+            with sr.Microphone(device_index=MIC_DEVICE_INDEX) as source:
                 print("Listening for user command...")
                 self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
 
