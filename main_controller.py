@@ -133,7 +133,19 @@ def _touch_worker(
 
 def setup_ai_mqtt_handler(mqtt_bot, voice, audio):
     """Handles commands coming from the React Tablet UI."""
+    # MQTT can replay the last message on a topic the instant we (re)subscribe
+    # on startup (a retained message from an earlier button press). Ignoring
+    # ai-commands that arrive in the first couple seconds filters that replay
+    # out without touching mqtt_client.py, since a real button press can't
+    # happen before the Pi has even finished starting up.
+    startup_time = time.time()
+    STARTUP_GRACE_SECONDS = 4.0
+
     def on_ai_command(payload):
+        if time.time() - startup_time < STARTUP_GRACE_SECONDS:
+            print("⏭️  Ignoring ai-command received right at startup (stale MQTT replay, not a fresh button press).")
+            return
+
         action = payload.get("action")
         menu_context = payload.get("menu")
 
