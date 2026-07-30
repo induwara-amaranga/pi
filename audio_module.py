@@ -13,6 +13,7 @@ class AudioModule:
         self.enabled = False
         self._lock = threading.Lock()
         self._active_threads = []
+        self._last_thread: threading.Thread | None = None
         try:
             pygame.mixer.init()
             self.enabled = True
@@ -71,6 +72,20 @@ class AudioModule:
                 )
                 thread.start()
                 self._active_threads.append(thread)
+                self._last_thread = thread
 
         except Exception as e:
             print(f"Text-to-speech error: {e}")
+
+    def wait_until_done(self, timeout: float | None = None) -> None:
+        """
+        Block until the most recently started speech has finished playing.
+
+        Call this before listening again on the mic - otherwise the speaker
+        is still playing AURA's reply while listen_and_convert_to_text()
+        starts capturing, so the mic picks up AURA's own voice as a new
+        "command" and triggers another reply, repeating indefinitely.
+        """
+        thread = self._last_thread
+        if thread is not None:
+            thread.join(timeout=timeout)

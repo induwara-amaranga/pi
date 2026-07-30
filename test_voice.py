@@ -65,6 +65,7 @@ def run_turn(voice: VoiceModule, audio: AudioModule, use_wake_word: bool) -> boo
         voice.listen_for_wake_word(WAKE_WORD)
         print("✅ Wake word detected!")
         audio.speak_text("Yes, how can I help you?", cache=True)
+        audio.wait_until_done()
 
     print("👂 Listening for your command...")
     user_text = voice.listen_and_convert_to_text(timeout=8, phrase_time_limit=8)
@@ -78,6 +79,7 @@ def run_turn(voice: VoiceModule, audio: AudioModule, use_wake_word: bool) -> boo
     if user_text.lower().strip() in EXIT_PHRASES:
         print("👋 Exit phrase detected — ending test.")
         audio.speak_text("Goodbye. Have a nice day.", cache=True)
+        audio.wait_until_done()
         return False
 
     cleaned_text = voice.clean_up_text(user_text)
@@ -89,6 +91,7 @@ def run_turn(voice: VoiceModule, audio: AudioModule, use_wake_word: bool) -> boo
 
     print("🔊 Responding...")
     audio.speak_text(reply)
+    audio.wait_until_done()
     print("-" * 50)
     return True
 

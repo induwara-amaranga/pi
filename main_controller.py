@@ -152,6 +152,7 @@ def setup_ai_mqtt_handler(mqtt_bot, voice, audio):
             print("\n" + "-" * 50)
             print("🎙️  [UI] Mic button pressed. Activating hardware mic...")
             audio.speak_text("I am listening.", cache=True)
+            audio.wait_until_done()
             print("👂 Listening for your command...")
             user_text = voice.listen_and_convert_to_text(timeout=5, phrase_time_limit=8)
 
@@ -256,6 +257,7 @@ def main():
                     voice.listen_for_wake_word(WAKE_WORD)
                     print("✅ Wake word detected!")
                     audio.speak_text("Yes, how can I help you?", cache=True)
+                    audio.wait_until_done()
 
                 print("👂 Listening for your command...")
                 user_text = voice.listen_and_convert_to_text()
@@ -270,6 +272,7 @@ def main():
                     print("👋 Exit phrase detected — ending conversation.")
                     goodbye_text = "Goodbye. Have a nice day."
                     audio.speak_text(goodbye_text, cache=True)
+                    audio.wait_until_done()
                     break
 
                 cleaned_text = voice.clean_up_text(user_text)
@@ -280,6 +283,7 @@ def main():
                 reply = voice.get_ai_response(cleaned_text)
                 print("🔊 Responding...")
                 audio.speak_text(reply)
+                audio.wait_until_done()
                 print("=" * 50)
             else:
                 # Keep main thread alive while background workers handle hardware
