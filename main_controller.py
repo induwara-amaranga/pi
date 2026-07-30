@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 
 from oled_module import OLEDModule
 from mqtt_client import RobotMqttClient
-from config import USE_WAKE_WORD, WAKE_WORD, AI_PROVIDER, get_ai_api_key
+from config import AI_PROVIDER, get_ai_api_key
 from hardware_config import GPIO_MODE, TOUCH_SEQUENCE
 from touch_module import TouchModule
 from stepper_module import StepperModule
@@ -240,54 +240,22 @@ def main():
 
     print("AURA voice assistant started.")
 
-    if voice and USE_WAKE_WORD:
-        print(f"Wake word mode enabled. Say '{WAKE_WORD}' to activate.")
+    if voice:
+        print("Voice control is UI-triggered only — press the mic button on the tablet to talk to AURA.")
     else:
-        print("Wake word mode disabled. Listening directly for commands.")
+        print("Voice mode unavailable.")
 
     mqtt_bot.publish_status(battery=100, location="Home", state="ONLINE")
     print("AURA System Started with MQTT Integration.")
 
     while True:
         try:
-            if voice:
-                if USE_WAKE_WORD:
-                    print("\n" + "=" * 50)
-                    print(f"💤 Idle — say '{WAKE_WORD}' to wake AURA...")
-                    voice.listen_for_wake_word(WAKE_WORD)
-                    print("✅ Wake word detected!")
-                    audio.speak_text("Yes, how can I help you?", cache=True)
-                    audio.wait_until_done()
-
-                print("👂 Listening for your command...")
-                user_text = voice.listen_and_convert_to_text()
-
-                if not user_text:
-                    print("⚠️  Didn't catch that — listening again.")
-                    continue
-
-                print(f"👤 You said: {user_text}")
-
-                if user_text.lower() in ["exit", "quit", "stop", "goodbye", "bye"]:
-                    print("👋 Exit phrase detected — ending conversation.")
-                    goodbye_text = "Goodbye. Have a nice day."
-                    audio.speak_text(goodbye_text, cache=True)
-                    audio.wait_until_done()
-                    break
-
-                cleaned_text = voice.clean_up_text(user_text)
-                if cleaned_text != user_text:
-                    print(f"📝 Cleaned up: {cleaned_text}")
-
-                print("🤔 Thinking...")
-                reply = voice.get_ai_response(cleaned_text)
-                print("🔊 Responding...")
-                audio.speak_text(reply)
-                audio.wait_until_done()
-                print("=" * 50)
-            else:
-                # Keep main thread alive while background workers handle hardware
-                time.sleep(0.1)
+            # Voice interaction is handled entirely by setup_ai_mqtt_handler's
+            # on_ai_command callback, triggered by the UI's mic/text buttons over
+            # MQTT (runs on paho-mqtt's own thread). Nothing here should call
+            # voice.listen_and_convert_to_text() - that would make the mic listen
+            # continuously instead of only when the user presses the UI button.
+            time.sleep(0.1)
 
         except KeyboardInterrupt:
             print("\n🛑 Program stopped by user.")
