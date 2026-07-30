@@ -264,8 +264,14 @@ class PanTiltController:
         Tilt is left unchanged. Call this before nod() so the robot visibly
         checks both sides first, then acknowledges with a nod.
         """
-        left_target  = PAN_HOME - LOOK_PAN_OFFSET
-        right_target = PAN_HOME + LOOK_PAN_OFFSET
+        # Clamp here too (not just inside set_pan_target) so the convergence
+        # check below compares against the angle the servo can actually
+        # reach - otherwise an out-of-range target (e.g. PAN_HOME +
+        # LOOK_PAN_OFFSET past PAN_MAX) gets silently clamped in
+        # set_pan_target while this loop keeps waiting for the unclamped
+        # value, which the servo can never reach, and hangs forever.
+        left_target  = clamp(PAN_HOME - LOOK_PAN_OFFSET, PAN_MIN, PAN_MAX)
+        right_target = clamp(PAN_HOME + LOOK_PAN_OFFSET, PAN_MIN, PAN_MAX)
         log.info("Looking around (pan: %.0f° ↔ %.0f°) ...", left_target, right_target)
         interval  = 1.0 / SERVO_HZ
         threshold = 0.8
