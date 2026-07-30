@@ -9,6 +9,9 @@ SpeechRecognition
 PyAudio
 pygame
 gTTS
+numpy
+noisereduce
+scipy
 
 # --- Hardware (Linux/RPi Only) ---
 Pillow

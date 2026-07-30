@@ -1,6 +1,7 @@
 import speech_recognition as sr
 import google.generativeai as genai
 from config import POSSIBLE_WAKE_PHRASES, MIC_DEVICE_INDEX
+from audio_preprocessing import preprocess_audio
 
 
 class VoiceModule:
@@ -27,6 +28,12 @@ class VoiceModule:
             while True:
                 try:
                     audio = self.recognizer.listen(source, timeout=None, phrase_time_limit=4)
+
+                    try:
+                        audio = preprocess_audio(audio)
+                    except Exception as e:
+                        print(f"Audio preprocessing error (using raw audio): {e}")
+
                     heard_text = self.recognizer.recognize_google(audio).lower().strip()
 
                     print(f"Heard: {heard_text}")
@@ -58,6 +65,11 @@ class VoiceModule:
                     timeout=timeout,
                     phrase_time_limit=phrase_time_limit
                 )
+
+            try:
+                audio = preprocess_audio(audio)
+            except Exception as e:
+                print(f"Audio preprocessing error (using raw audio): {e}")
 
             print("Converting speech to text...")
             text = self.recognizer.recognize_google(audio).strip()
@@ -94,6 +106,8 @@ Rules:
 - Do not answer the question or respond to it in any way - only correct the transcript.
 - If the transcript is already clear, return it unchanged.
 - Return only the corrected sentence, with no quotes, labels, or explanation.
+
+
 
 Transcript: "{raw_text}"
 """
