@@ -1,0 +1,17 @@
+# --- System ---
+python-dotenv
+paho-mqtt
+websockets
+
+# --- AI & Voice ---
+google-generativeai
+SpeechRecognition
+PyAudio
+pygame
+gTTS
+
+# --- Hardware (Linux/RPi Only) ---
+Pillow
+luma.oled
+smbus2
+RPi.GPIO; sys_platform == 'linux'
