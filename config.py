@@ -3,10 +3,23 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+# --- AI provider selection ---
+# Set AI_PROVIDER=claude (or anthropic) in .env to switch VoiceModule to the Claude API.
+AI_PROVIDER = os.getenv("AI_PROVIDER", "gemini").strip().lower()
 
-# if not GEMINI_API_KEY:
-#     raise ValueError("GEMINI_API_KEY is not set in environment variables")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
+
+_PROVIDER_KEYS = {
+    "gemini": GEMINI_API_KEY,
+    "claude": CLAUDE_API_KEY,
+    "anthropic": CLAUDE_API_KEY,
+}
+
+
+def get_ai_api_key() -> str | None:
+    """Return the API key for whichever provider AI_PROVIDER selects."""
+    return _PROVIDER_KEYS.get(AI_PROVIDER)
 
 MQTT_BROKER = os.getenv("MQTT_BROKER", "10.169.209.167")
 MQTT_PORT = int(os.getenv("MQTT_PORT", 1883))

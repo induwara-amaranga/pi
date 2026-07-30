@@ -1,11 +1,10 @@
 import argparse
-import os
 
 import speech_recognition as sr
 from dotenv import load_dotenv
 
 from audio_module import AudioModule
-from config import GEMINI_API_KEY, MIC_DEVICE_INDEX, WAKE_WORD
+from config import AI_PROVIDER, MIC_DEVICE_INDEX, WAKE_WORD, get_ai_api_key
 from voice_module import VoiceModule
 
 EXIT_PHRASES = {"exit", "quit", "stop", "goodbye", "bye"}
@@ -86,7 +85,7 @@ def run_turn(voice: VoiceModule, audio: AudioModule, use_wake_word: bool) -> boo
         print(f"📝 Cleaned up: {cleaned_text}")
 
     print("🤔 Thinking...")
-    reply = voice.get_gemini_response(cleaned_text)
+    reply = voice.get_ai_response(cleaned_text)
 
     print("🔊 Responding...")
     audio.speak_text(reply)
@@ -96,9 +95,9 @@ def run_turn(voice: VoiceModule, audio: AudioModule, use_wake_word: bool) -> boo
 
 def main() -> None:
     load_dotenv()
-    api_key = os.getenv("GEMINI_API_KEY") or GEMINI_API_KEY
+    api_key = get_ai_api_key()
     if not api_key:
-        print("ERROR: GEMINI_API_KEY is not set. Add it to .env or config.py.")
+        print(f"ERROR: No API key set for provider '{AI_PROVIDER}'. Check your .env.")
         return
 
     args = parse_args()
@@ -107,7 +106,7 @@ def main() -> None:
     #print_mic_check()
 
     audio = AudioModule()
-    voice = VoiceModule(gemini_api_key=api_key)
+    voice = VoiceModule(api_key=api_key, provider=AI_PROVIDER)
 
     print_mic_check()
     print("\nFull pipeline test started.")

@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 
 from oled_module import OLEDModule
 from mqtt_client import RobotMqttClient
-from config import USE_WAKE_WORD, WAKE_WORD
+from config import USE_WAKE_WORD, WAKE_WORD, AI_PROVIDER, get_ai_api_key
 from hardware_config import GPIO_MODE, TOUCH_SEQUENCE
 from touch_module import TouchModule
 from stepper_module import StepperModule
@@ -143,7 +143,7 @@ def setup_ai_mqtt_handler(mqtt_bot, voice, audio):
                 print("\n" + "-" * 50)
                 print(f"⌨️  [UI] User typed: {user_text}")
                 print("🤔 Thinking...")
-                reply = voice.get_gemini_response(user_text, menu_context)
+                reply = voice.get_ai_response(user_text, menu_context)
                 print("🔊 Responding...")
                 audio.speak_text(reply)
                 print("-" * 50)
@@ -161,7 +161,7 @@ def setup_ai_mqtt_handler(mqtt_bot, voice, audio):
                 if cleaned_text != user_text:
                     print(f"📝 Cleaned up: {cleaned_text}")
                 print("🤔 Thinking...")
-                reply = voice.get_gemini_response(cleaned_text, menu_context)
+                reply = voice.get_ai_response(cleaned_text, menu_context)
                 print("🔊 Responding...")
                 audio.speak_text(reply)
             else:
@@ -172,7 +172,7 @@ def setup_ai_mqtt_handler(mqtt_bot, voice, audio):
 # ----------------------------------------
 
 def main():
-    gemini_api_key = os.getenv("GEMINI_API_KEY")
+    ai_api_key = get_ai_api_key()
 
     class _SilentAudio:
         def speak_text(self, text: str):
@@ -190,10 +190,10 @@ def main():
     except Exception as e:
         print(f"Audio disabled (initialization error): {e}")
 
-    if gemini_api_key:
+    if ai_api_key:
         try:
             from voice_module import VoiceModule
-            voice = VoiceModule(gemini_api_key=gemini_api_key)
+            voice = VoiceModule(api_key=ai_api_key, provider=AI_PROVIDER)
         except ModuleNotFoundError as e:
             print(f"Voice mode disabled (missing dependency): {e}")
             print("Tip: run with venv Python -> ./venv/bin/python main_controller.py")
@@ -277,7 +277,7 @@ def main():
                     print(f"📝 Cleaned up: {cleaned_text}")
 
                 print("🤔 Thinking...")
-                reply = voice.get_gemini_response(cleaned_text)
+                reply = voice.get_ai_response(cleaned_text)
                 print("🔊 Responding...")
                 audio.speak_text(reply)
                 print("=" * 50)

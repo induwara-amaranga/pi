@@ -1,11 +1,11 @@
 import speech_recognition as sr
-import google.generativeai as genai
 from config import POSSIBLE_WAKE_PHRASES, MIC_DEVICE_INDEX
 from audio_preprocessing import preprocess_audio
+from ai_client import create_ai_client, AIClient
 
 
 class VoiceModule:
-    def __init__(self, gemini_api_key: str):
+    def __init__(self, api_key: str, provider: str = "gemini", ai_client: AIClient | None = None):
         self.recognizer = sr.Recognizer()
 
         # Mic sensitivity settings
@@ -13,8 +13,7 @@ class VoiceModule:
         self.recognizer.dynamic_energy_threshold = True
         self.recognizer.pause_threshold = 0.8
 
-        genai.configure(api_key=gemini_api_key)
-        self.model = genai.GenerativeModel("models/gemini-flash-latest")
+        self.ai_client = ai_client or create_ai_client(provider, api_key)
 
     def listen_for_wake_word(self, wake_word: str = "hi aura") -> bool:
         """
@@ -111,21 +110,17 @@ Rules:
 
 Transcript: "{raw_text}"
 """
-            response = self.model.generate_content(prompt)
-
-            if response and hasattr(response, "text") and response.text:
-                cleaned = response.text.strip().strip('"')
-                return cleaned or raw_text
-
-            return raw_text
+            cleaned = self.ai_client.generate(prompt).strip().strip('"')
+            return cleaned or raw_text
 
         except Exception as e:
             print(f"Text cleanup error: {e}")
             return raw_text
 
-    def get_gemini_response(self, user_text: str, menu_context: str | None = None) -> str:
+    def get_ai_response(self, user_text: str, menu_context: str | None = None) -> str:
         """
-        Send user text to Gemini and return AURA's reply, using current menu context when available.
+        Send user text to the configured AI provider and return AURA's reply,
+        using current menu context when available.
         """
         try:
             menu_section = ""
@@ -147,15 +142,14 @@ Rules:
 {menu_section}User said: {user_text}
 """
 
-            response = self.model.generate_content(prompt)
+            reply = self.ai_client.generate(prompt).strip()
 
-            if response and hasattr(response, "text") and response.text:
-                reply = response.text.strip()
+            if reply:
                 print(f"AURA reply: {reply}")
                 return reply
 
             return "Sorry, I could not generate a response."
 
         except Exception as e:
-            print(f"Gemini error: {e}")
+            print(f"AI response error: {e}")
             return "Sorry, I had trouble processing that request."

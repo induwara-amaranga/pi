@@ -1,21 +1,20 @@
-import os
 import time
 from dotenv import load_dotenv
 
 from audio_module import AudioModule
 from mqtt_client import RobotMqttClient
 from voice_module import VoiceModule
-from config import GEMINI_API_KEY
+from config import AI_PROVIDER, get_ai_api_key
 
 def check_environment() -> bool:
     print("\n=== Environment Check ===")
     load_dotenv()
-    api_key = os.getenv("GEMINI_API_KEY") or GEMINI_API_KEY
+    api_key = get_ai_api_key()
     if not api_key:
-        print("ERROR: GEMINI_API_KEY is not set in environment or config.py.")
-        print("Create a .env file with GEMINI_API_KEY=your_key or set the environment variable.")
+        print(f"ERROR: No API key set for provider '{AI_PROVIDER}'.")
+        print("Set AI_PROVIDER and the matching *_API_KEY in your .env.")
         return False
-    print("GEMINI_API_KEY found.")
+    print(f"API key found for provider '{AI_PROVIDER}'.")
     return True
 
 def setup_ai_mqtt_handler(mqtt_bot: RobotMqttClient, voice: VoiceModule, audio: AudioModule):
@@ -41,7 +40,7 @@ def setup_ai_mqtt_handler(mqtt_bot: RobotMqttClient, voice: VoiceModule, audio: 
                 print(f"👤 You asked: {user_text}")
                 print("🤖 Asking Gemini...")
                 
-                reply = voice.get_gemini_response(user_text, menu_context)
+                reply = voice.get_ai_response(user_text, menu_context)
                 
                 print(f"🔊 AURA replied: {reply}")
                 audio.speak_text(reply)
@@ -61,7 +60,7 @@ def main() -> None:
     # Initialize Voice and Audio modules
     print("\nInitializing Audio and Voice modules...")
     audio = AudioModule()
-    voice = VoiceModule(gemini_api_key=os.getenv("GEMINI_API_KEY") or GEMINI_API_KEY)
+    voice = VoiceModule(api_key=get_ai_api_key(), provider=AI_PROVIDER)
 
     # Initialize MQTT client
     print("Connecting to MQTT Broker...")

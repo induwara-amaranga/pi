@@ -5,6 +5,7 @@ websockets
 
 # --- AI & Voice ---
 google-generativeai
+anthropic
 SpeechRecognition
 PyAudio
 pygame
