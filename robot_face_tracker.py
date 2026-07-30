@@ -74,6 +74,11 @@ NOD_ALPHA       = 0.45                # blend speed for nod movement (higher = f
 NOD_HOLD_SEC    = 0.03                # seconds to hold at each extreme
 NOD_SETTLE_SEC  = 0.00                # seconds to hold at center between nods
 
+# Look-around settings  ← slow left/right glance, done once before nodding
+LOOK_PAN_OFFSET = 20                  # degrees left/right from home to look (clamped by PAN_MIN/MAX)
+LOOK_ALPHA      = 0.06                # blend speed for look movement (low = slow, deliberate)
+LOOK_HOLD_SEC   = 0.35                # seconds to hold gaze at each side before moving on
+
 # Dead-zone – pixels from frame centre where we do NOT move
 DEAD_ZONE_X = 55    # widened from 45 — less twitchy near centre
 DEAD_ZONE_Y = 999   # vertical   — effectively infinite (tilt not tracking)
@@ -253,6 +258,35 @@ class PanTiltController:
             self._cur_tilt = float(TILT_HOME)
             self._apply(PAN_HOME, TILT_HOME)
 
+    def look_around(self):
+        """
+        Slowly glance left then right (blocking), then return to home pan.
+        Tilt is left unchanged. Call this before nod() so the robot visibly
+        checks both sides first, then acknowledges with a nod.
+        """
+        left_target  = PAN_HOME - LOOK_PAN_OFFSET
+        right_target = PAN_HOME + LOOK_PAN_OFFSET
+        log.info("Looking around (pan: %.0f° ↔ %.0f°) ...", left_target, right_target)
+        interval  = 1.0 / SERVO_HZ
+        threshold = 0.8
+
+        for pan_target in (left_target, right_target, PAN_HOME):
+            self.set_pan_target(pan_target)
+            while True:
+                cur_pan, _ = self.smooth_step(alpha=LOOK_ALPHA)
+                if abs(cur_pan - pan_target) < threshold:
+                    break
+                time.sleep(interval)
+            time.sleep(LOOK_HOLD_SEC)
+
+        # Snap to exact home pan
+        with self._lock:
+            self._cur_pan = float(PAN_HOME)
+            self._tgt_pan = float(PAN_HOME)
+            self._apply(self._cur_pan, self._cur_tilt)
+
+        log.info("Look-around complete.")
+
     def nod(self):
         """
         Perform NOD_COUNT expressive nods (blocking).
@@ -406,7 +440,8 @@ class RestaurantRobot:
         # ── Servos ───────────────────────────────────────────────
         self.servo = PanTiltController()
 
-        # ── Startup nod (before tracking begins) ─────────────────
+        # ── Startup look-around, then nod (before tracking begins) ──
+        self.servo.look_around()
         self.servo.nod()
 
         # ── Lock tilt at natural angle for the rest of runtime ───
