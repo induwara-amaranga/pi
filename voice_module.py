@@ -1,3 +1,6 @@
+import threading
+import time
+
 import speech_recognition as sr
 from config import POSSIBLE_WAKE_PHRASES, MIC_DEVICE_INDEX
 from audio_preprocessing import preprocess_audio
@@ -15,78 +18,107 @@ class VoiceModule:
 
         self.ai_client = ai_client or create_ai_client(provider, api_key)
 
+        # Only one thread can hold the mic device at a time (the Pi's ALSA
+        # route for it has no dmix, so two concurrent streams fight over the
+        # same hardware and PortAudio kills one out from under the other).
+        # _mic_lock serializes access; _yield_mic lets an on-demand listener
+        # (e.g. the UI mic button, running on the MQTT thread) signal the
+        # wake-word loop to release the mic between attempts instead of
+        # holding it indefinitely.
+        self._mic_lock = threading.Lock()
+        self._yield_mic = threading.Event()
+
     def listen_for_wake_word(self, wake_word: str = "hi aura") -> bool:
         """
-        Continuously listens until the wake word is detected.
+        Continuously listens until the wake word is detected. Releases the
+        mic between attempts so an on-demand listen elsewhere can take over.
         """
         print(f"Waiting for wake word: '{wake_word}'")
 
-        with sr.Microphone(device_index=MIC_DEVICE_INDEX) as source:
-            self.recognizer.adjust_for_ambient_noise(source, duration=1)
+        calibrated = False
 
-            while True:
+        while True:
+            if self._yield_mic.is_set():
+                time.sleep(0.05)
+                continue
+
+            try:
+                with self._mic_lock:
+                    with sr.Microphone(device_index=MIC_DEVICE_INDEX) as source:
+                        if not calibrated:
+                            self.recognizer.adjust_for_ambient_noise(source, duration=1)
+                            calibrated = True
+
+                        audio = self.recognizer.listen(source, timeout=1, phrase_time_limit=4)
+
                 try:
-                    audio = self.recognizer.listen(source, timeout=None, phrase_time_limit=4)
+                    audio = preprocess_audio(audio)
+                except Exception as e:
+                    print(f"Audio preprocessing error (using raw audio): {e}")
+
+                heard_text = self.recognizer.recognize_google(audio).lower().strip()
+
+                print(f"Heard: {heard_text}")
+
+                if any(phrase in heard_text for phrase in POSSIBLE_WAKE_PHRASES):
+                    print("Wake word detected.")
+                    return True
+
+            except sr.WaitTimeoutError:
+                continue
+            except sr.UnknownValueError:
+                continue
+            except sr.RequestError as e:
+                print(f"Speech service error while waiting for wake word: {e}")
+                continue
+            except Exception as e:
+                print(f"Unexpected wake word error: {e}")
+                continue
+
+    def listen_and_convert_to_text(self, timeout: int = 5, phrase_time_limit: int = 8) -> str | None:
+        """
+        Listen once and convert speech to text. Signals the wake-word loop
+        (if running) to yield the mic first, then takes the lock so the two
+        can't capture from the same device at once.
+        """
+        self._yield_mic.set()
+        try:
+            with self._mic_lock:
+                try:
+                    with sr.Microphone(device_index=MIC_DEVICE_INDEX) as source:
+                        print("Listening for user command...")
+                        self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
+
+                        audio = self.recognizer.listen(
+                            source,
+                            timeout=timeout,
+                            phrase_time_limit=phrase_time_limit
+                        )
 
                     try:
                         audio = preprocess_audio(audio)
                     except Exception as e:
                         print(f"Audio preprocessing error (using raw audio): {e}")
 
-                    heard_text = self.recognizer.recognize_google(audio).lower().strip()
+                    print("Converting speech to text...")
+                    text = self.recognizer.recognize_google(audio).strip()
+                    print(f"User said: {text}")
+                    return text
 
-                    print(f"Heard: {heard_text}")
-
-                    if any(phrase in heard_text for phrase in POSSIBLE_WAKE_PHRASES):
-                        print("Wake word detected.")
-                        return True
-
+                except sr.WaitTimeoutError:
+                    print("No speech detected before timeout.")
+                    return None
                 except sr.UnknownValueError:
-                    continue
+                    print("Could not understand the audio.")
+                    return None
                 except sr.RequestError as e:
-                    print(f"Speech service error while waiting for wake word: {e}")
-                    continue
+                    print(f"Speech recognition service error: {e}")
+                    return None
                 except Exception as e:
-                    print(f"Unexpected wake word error: {e}")
-                    continue
-
-    def listen_and_convert_to_text(self, timeout: int = 5, phrase_time_limit: int = 8) -> str | None:
-        """
-        Listen once and convert speech to text.
-        """
-        try:
-            with sr.Microphone(device_index=MIC_DEVICE_INDEX) as source:
-                print("Listening for user command...")
-                self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
-
-                audio = self.recognizer.listen(
-                    source,
-                    timeout=timeout,
-                    phrase_time_limit=phrase_time_limit
-                )
-
-            try:
-                audio = preprocess_audio(audio)
-            except Exception as e:
-                print(f"Audio preprocessing error (using raw audio): {e}")
-
-            print("Converting speech to text...")
-            text = self.recognizer.recognize_google(audio).strip()
-            print(f"User said: {text}")
-            return text
-
-        except sr.WaitTimeoutError:
-            print("No speech detected before timeout.")
-            return None
-        except sr.UnknownValueError:
-            print("Could not understand the audio.")
-            return None
-        except sr.RequestError as e:
-            print(f"Speech recognition service error: {e}")
-            return None
-        except Exception as e:
-            print(f"Unexpected speech-to-text error: {e}")
-            return None
+                    print(f"Unexpected speech-to-text error: {e}")
+                    return None
+        finally:
+            self._yield_mic.clear()
 
     def clean_up_text(self, raw_text: str) -> str:
         """

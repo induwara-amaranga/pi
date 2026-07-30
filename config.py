@@ -31,7 +31,7 @@ MQTT_PORT = int(os.getenv("MQTT_PORT", 1883))
 # to find the correct index if the USB mic changes.
 MIC_DEVICE_INDEX = int(os.getenv("MIC_DEVICE_INDEX", 1))
 
-USE_WAKE_WORD = True
+USE_WAKE_WORD = False
 WAKE_WORD = "hi aura"
 
 POSSIBLE_WAKE_PHRASES = [
