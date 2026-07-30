@@ -43,10 +43,29 @@ class ClaudeClient(AIClient):
         return ""
 
 
+class GroqClient(AIClient):
+    def __init__(self, api_key: str, model: str = "llama-3.3-70b-versatile"):
+        from groq import Groq
+
+        self._client = Groq(api_key=api_key)
+        self._model = model
+
+    def generate(self, prompt: str) -> str:
+        response = self._client.chat.completions.create(
+            model=self._model,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        if response and response.choices:
+            content = response.choices[0].message.content
+            return content.strip() if content else ""
+        return ""
+
+
 _PROVIDERS = {
     "gemini": GeminiClient,
     "claude": ClaudeClient,
     "anthropic": ClaudeClient,
+    "groq": GroqClient,
 }
 
 

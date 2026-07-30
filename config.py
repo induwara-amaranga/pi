@@ -4,16 +4,18 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- AI provider selection ---
-# Set AI_PROVIDER=claude (or anthropic) in .env to switch VoiceModule to the Claude API.
+# Set AI_PROVIDER=claude|anthropic|groq in .env to switch VoiceModule to that API.
 AI_PROVIDER = os.getenv("AI_PROVIDER", "gemini").strip().lower()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 _PROVIDER_KEYS = {
     "gemini": GEMINI_API_KEY,
     "claude": CLAUDE_API_KEY,
     "anthropic": CLAUDE_API_KEY,
+    "groq": GROQ_API_KEY,
 }
 
 
