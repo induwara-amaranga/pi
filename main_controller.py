@@ -152,7 +152,6 @@ def setup_ai_mqtt_handler(mqtt_bot, voice, audio):
             print("\n" + "-" * 50)
             print("🎙️  [UI] Mic button pressed. Activating hardware mic...")
             audio.speak_text("I am listening.", cache=True)
-            audio.wait_until_done()
             print("👂 Listening for your command...")
             user_text = voice.listen_and_convert_to_text(timeout=5, phrase_time_limit=8)
 

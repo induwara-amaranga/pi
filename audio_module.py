@@ -1,7 +1,6 @@
 import hashlib
 import os
 import tempfile
-import threading
 from gtts import gTTS
 import pygame
 
@@ -11,9 +10,6 @@ CACHE_DIR = os.path.join(os.path.dirname(__file__), "tts_cache")
 class AudioModule:
     def __init__(self):
         self.enabled = False
-        self._lock = threading.Lock()
-        self._active_threads = []
-        self._last_thread: threading.Thread | None = None
         try:
             pygame.mixer.init()
             self.enabled = True
@@ -35,7 +31,8 @@ class AudioModule:
 
     def speak_text(self, text: str, lang: str = "en", cache: bool = False):
         """
-        Convert text to speech and play through speaker.
+        Convert text to speech and play through speaker. Blocks until
+        playback finishes.
 
         cache=True reuses a saved mp3 for repeated fixed phrases (greetings,
         acknowledgements, goodbyes) instead of hitting the gTTS network API
@@ -64,28 +61,7 @@ class AudioModule:
 
                 gTTS(text=text, lang=lang).save(audio_path)
 
-            with self._lock:
-                thread = threading.Thread(
-                    target=self._play_audio_file,
-                    args=(audio_path, delete_after),
-                    daemon=True,
-                )
-                thread.start()
-                self._active_threads.append(thread)
-                self._last_thread = thread
+            self._play_audio_file(audio_path, delete_after)
 
         except Exception as e:
             print(f"Text-to-speech error: {e}")
-
-    def wait_until_done(self, timeout: float | None = None) -> None:
-        """
-        Block until the most recently started speech has finished playing.
-
-        Call this before listening again on the mic - otherwise the speaker
-        is still playing AURA's reply while listen_and_convert_to_text()
-        starts capturing, so the mic picks up AURA's own voice as a new
-        "command" and triggers another reply, repeating indefinitely.
-        """
-        thread = self._last_thread
-        if thread is not None:
-            thread.join(timeout=timeout)
