@@ -31,7 +31,7 @@ def setup_ai_mqtt_handler(mqtt_bot: RobotMqttClient, voice: VoiceModule, audio: 
             print("Activating laptop microphone...")
             
             # Acknowledge the user so they know to start speaking
-            audio.speak_text("I am listening.") 
+            audio.speak_text("I am listening.", cache=True)
             
             # Activate the laptop microphone
             user_text = voice.listen_and_convert_to_text(timeout=5, phrase_time_limit=8)

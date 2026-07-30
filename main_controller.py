@@ -151,7 +151,7 @@ def setup_ai_mqtt_handler(mqtt_bot, voice, audio):
         elif action == "START_VOICE_MIC":
             print("\n" + "-" * 50)
             print("🎙️  [UI] Mic button pressed. Activating hardware mic...")
-            audio.speak_text("I am listening.")
+            audio.speak_text("I am listening.", cache=True)
             print("👂 Listening for your command...")
             user_text = voice.listen_and_convert_to_text(timeout=5, phrase_time_limit=8)
 
@@ -175,7 +175,7 @@ def main():
     ai_api_key = get_ai_api_key()
 
     class _SilentAudio:
-        def speak_text(self, text: str):
+        def speak_text(self, text: str, lang: str = "en", cache: bool = False):
             print(f"AURA speaking (audio disabled): {text}")
 
     voice = None
@@ -255,7 +255,7 @@ def main():
                     print(f"💤 Idle — say '{WAKE_WORD}' to wake AURA...")
                     voice.listen_for_wake_word(WAKE_WORD)
                     print("✅ Wake word detected!")
-                    audio.speak_text("Yes, how can I help you?")
+                    audio.speak_text("Yes, how can I help you?", cache=True)
 
                 print("👂 Listening for your command...")
                 user_text = voice.listen_and_convert_to_text()
@@ -269,7 +269,7 @@ def main():
                 if user_text.lower() in ["exit", "quit", "stop", "goodbye", "bye"]:
                     print("👋 Exit phrase detected — ending conversation.")
                     goodbye_text = "Goodbye. Have a nice day."
-                    audio.speak_text(goodbye_text)
+                    audio.speak_text(goodbye_text, cache=True)
                     break
 
                 cleaned_text = voice.clean_up_text(user_text)

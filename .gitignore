@@ -136,6 +136,7 @@ logs/
 *.wav
 *.mp3
 audio_cache/
+tts_cache/
 
 # MQTT logs
 mqtt_logs/
