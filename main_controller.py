@@ -157,8 +157,11 @@ def setup_ai_mqtt_handler(mqtt_bot, voice, audio):
 
             if user_text:
                 print(f"👤 You said: {user_text}")
+                cleaned_text = voice.clean_up_text(user_text)
+                if cleaned_text != user_text:
+                    print(f"📝 Cleaned up: {cleaned_text}")
                 print("🤔 Thinking...")
-                reply = voice.get_gemini_response(user_text, menu_context)
+                reply = voice.get_gemini_response(cleaned_text, menu_context)
                 print("🔊 Responding...")
                 audio.speak_text(reply)
             else:
@@ -269,8 +272,12 @@ def main():
                     audio.speak_text(goodbye_text)
                     break
 
+                cleaned_text = voice.clean_up_text(user_text)
+                if cleaned_text != user_text:
+                    print(f"📝 Cleaned up: {cleaned_text}")
+
                 print("🤔 Thinking...")
-                reply = voice.get_gemini_response(user_text)
+                reply = voice.get_gemini_response(cleaned_text)
                 print("🔊 Responding...")
                 audio.speak_text(reply)
                 print("=" * 50)

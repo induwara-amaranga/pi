@@ -77,6 +77,38 @@ class VoiceModule:
             print(f"Unexpected speech-to-text error: {e}")
             return None
 
+    def clean_up_text(self, raw_text: str) -> str:
+        """
+        Correct likely speech-to-text errors and return a concise, coherent
+        version of what the user probably said, without answering it.
+        """
+        try:
+            prompt = f"""
+You are cleaning up a speech-to-text transcript from a customer talking to a restaurant
+robot assistant. The transcript may contain misheard words, missing words, or awkward
+phrasing caused by transcription errors.
+
+Rules:
+- Fix likely transcription errors and produce the most probable intended sentence.
+- Keep it concise and natural. Do not add new requests or information that wasn't implied.
+- Do not answer the question or respond to it in any way - only correct the transcript.
+- If the transcript is already clear, return it unchanged.
+- Return only the corrected sentence, with no quotes, labels, or explanation.
+
+Transcript: "{raw_text}"
+"""
+            response = self.model.generate_content(prompt)
+
+            if response and hasattr(response, "text") and response.text:
+                cleaned = response.text.strip().strip('"')
+                return cleaned or raw_text
+
+            return raw_text
+
+        except Exception as e:
+            print(f"Text cleanup error: {e}")
+            return raw_text
+
     def get_gemini_response(self, user_text: str, menu_context: str | None = None) -> str:
         """
         Send user text to Gemini and return AURA's reply, using current menu context when available.
