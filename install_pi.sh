@@ -69,6 +69,11 @@ info "Updating apt package index..."
 sudo apt-get update -y
 
 info "Installing core system dependencies..."
+# python3-libgpiod pulls in whichever libgpiod runtime SONAME the OS ships
+# (libgpiod2 on Bullseye/Bookworm, libgpiod3 on Trixie) - don't pin it
+# explicitly. Likewise libatlas-base-dev was dropped from Debian for Trixie
+# (Atlas is obsolete); libopenblas-dev is the BLAS/LAPACK provider used
+# instead and is available on all three releases.
 sudo apt-get install -y --no-install-recommends \
     python3 \
     python3-venv \
@@ -77,9 +82,8 @@ sudo apt-get install -y --no-install-recommends \
     build-essential \
     git \
     i2c-tools \
-    libgpiod2 \
     python3-libgpiod \
-    libatlas-base-dev \
+    libopenblas-dev \
     libopenjp2-7 \
     libjpeg-dev \
     zlib1g-dev \
