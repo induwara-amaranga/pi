@@ -20,3 +20,10 @@ Pillow
 luma.oled
 smbus2
 RPi.GPIO; sys_platform == 'linux'
+adafruit-circuitpython-servokit; sys_platform == 'linux'
+adafruit-blinka; sys_platform == 'linux'
+
+# --- Vision (Linux/RPi Only) ---
+opencv-python
+# picamera2 is installed via apt (python3-picamera2) by install_pi.sh, not pip -
+# it depends on libcamera/rpicam system libraries that pip cannot provide.
