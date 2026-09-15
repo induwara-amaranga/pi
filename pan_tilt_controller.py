@@ -25,7 +25,7 @@ PAN_MIN  = 70;   PAN_MAX  = 120
 TILT_MIN = 60;   TILT_MAX = 120
 
 # Home / natural positions (degrees)
-PAN_HOME     = 108    # centre pan
+PAN_HOME     = 100   # centre pan
 TILT_NATURAL = 110    # natural slightly-upward gaze (held during tracking)
 TILT_HOME    = TILT_NATURAL   # home = same natural angle
 
@@ -37,9 +37,9 @@ TILT_HOME    = TILT_NATURAL   # home = same natural angle
 TILT_NOD_UP     = TILT_NATURAL - 30   # degrees UP from natural (- = up, clamped by TILT_MIN)
 TILT_NOD_DOWN   = TILT_NATURAL + 10   # degrees DOWN from natural (+ = down, clamped by TILT_MAX)
 NOD_COUNT       = 2                   # number of nod cycles
-NOD_ALPHA       = 0.45                # blend speed for nod movement (higher = faster)
-NOD_HOLD_SEC    = 0.18                # seconds to hold at each extreme (was 0.03 - too brief to register)
-NOD_SETTLE_SEC  = 0.12                # seconds to hold at center between nods (was 0 - reps blurred together)
+NOD_ALPHA       = 0.65                # blend speed for nod movement (higher = faster)
+NOD_HOLD_SEC    = 0.03                # seconds to hold at each extreme (was 0.03 - too brief to register)
+NOD_SETTLE_SEC  = 0.08                # seconds to hold at center between nods (was 0 - reps blurred together)
 
 # Look-around settings  ← slow left/right glance, done once before nodding.
 # PAN_HOME (108) sits close to PAN_MAX (120), so a single symmetric offset
@@ -49,8 +49,8 @@ NOD_SETTLE_SEC  = 0.12                # seconds to hold at center between nods (
 # actually visible instead of the right one looking like it barely moved.
 LOOK_PAN_LEFT_OFFSET  = 32            # degrees left from home (clamped by PAN_MIN)
 LOOK_PAN_RIGHT_OFFSET = 12            # degrees right from home (clamped by PAN_MAX)
-LOOK_ALPHA      = 0.06                # blend speed for look movement (low = slow, deliberate)
-LOOK_HOLD_SEC   = 0.4                 # seconds to hold gaze at each side before moving on
+LOOK_ALPHA      = 0.16                # blend speed for look movement (low = slow, deliberate)
+LOOK_HOLD_SEC   = 0.1                 # seconds to hold gaze at each side before moving on
 
 # Servo thread smoothing
 # Lower SERVO_ALPHA = smoother / slower blending toward target
