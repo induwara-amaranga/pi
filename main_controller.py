@@ -16,7 +16,6 @@ from hardware_config import GPIO_MODE, TOUCH_SEQUENCE
 from touch_module import TouchModule
 from stepper_module import StepperModule
 from body_rotate_new import BodyRotationController
-from pan_tilt_controller import PanTiltController
 
 # Set global GPIO mode before initializing modules
 GPIO.setwarnings(False)
@@ -62,12 +61,21 @@ def start_websocket_server(mqtt_bot):
 
 def _run_startup_gesture():
     """Look around, then nod — greets whoever triggered a face tracker cycle
-    before the pan/tilt head hands control over to the tracker subprocess."""
+    before the pan/tilt head hands control over to the tracker subprocess.
+
+    Run as a subprocess (not imported in-process) because pan_tilt_controller
+    pulls in adafruit_servokit/Blinka, which forces RPi.GPIO into BCM mode as
+    an import side effect. main_controller.py's own GPIO.setmode(GPIO.BOARD)
+    call (for the touch/stepper pins) would conflict with that if both ran
+    in the same process — RPi.GPIO allows only one numbering mode per
+    process.
+    """
+    gesture_script = os.path.join(os.path.dirname(__file__), "pan_tilt_controller.py")
     print("Running startup gesture (look around + head nod) ...")
     try:
-        gesture_servo = PanTiltController()
-        gesture_servo.look_around()
-        gesture_servo.nod()
+        result = subprocess.run([sys.executable, gesture_script], check=False)
+        if result.returncode != 0:
+            print(f"Startup gesture exited with code {result.returncode}.")
     except Exception as e:
         print(f"Startup gesture failed: {e}")
 
