@@ -238,3 +238,21 @@ class PanTiltController:
     @property
     def tgt_tilt(self):
         with self._lock: return self._tgt_tilt
+
+
+if __name__ == "__main__":
+    # Run standalone (as a subprocess) so importing this module - and the
+    # adafruit_servokit/Blinka stack it pulls in - never shares a process
+    # with code that calls RPi.GPIO.setmode(GPIO.BOARD) (e.g.
+    # main_controller.py's touch/stepper setup). Blinka's board detection
+    # forces RPi.GPIO into BCM mode as a side effect of import, and RPi.GPIO
+    # allows only one numbering mode per process, so mixing the two in the
+    # same process raises "A different mode has already been set!".
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s  %(levelname)-8s  %(message)s",
+        datefmt="%H:%M:%S",
+    )
+    controller = PanTiltController()
+    controller.look_around()
+    controller.nod()
