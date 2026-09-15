@@ -80,7 +80,7 @@ def _run_startup_gesture():
         print(f"Startup gesture failed: {e}")
 
 def _run_face_tracker_cycle():
-    _run_startup_gesture()
+    
 
     tracker_script = os.path.join(os.path.dirname(__file__), "robot_face_tracker.py")
     max_seconds = os.getenv("FACE_TRACKER_MAX_SECONDS", "30")
@@ -143,8 +143,12 @@ def _touch_worker(
                         sequence_index = 1 if sensor_id == sequence[0] else 0
 
                     if not stop_event.is_set():
-                        _run_face_tracker_cycle()
-                        #pass
+                        print("Sleep ...")
+                        time.sleep(0.5)
+                        print("Wake up ...")
+                        _run_startup_gesture()
+                        #_run_face_tracker_cycle()
+                        pass
 
                     last_sensor = sensor_id
                     last_trigger_time = now
