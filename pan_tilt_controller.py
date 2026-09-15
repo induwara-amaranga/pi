@@ -6,7 +6,9 @@ tracking a face) and main_controller.py (the look-around + nod startup
 gesture, run once before a face tracker cycle starts).
 """
 
+import json
 import logging
+import os
 import threading
 import time
 
@@ -28,17 +30,27 @@ TILT_NATURAL = 110    # natural slightly-upward gaze (held during tracking)
 TILT_HOME    = TILT_NATURAL   # home = same natural angle
 
 # Nod settings  ← oscillate between up and down (limited by servo range)
-TILT_NOD_UP     = TILT_NATURAL - 16   # degrees UP from natural (- = up, clamped by TILT_MIN)
+# TILT_NOD_DOWN is already pinned at TILT_MAX (110+10=120) so it can't grow
+# any further without exceeding the servo's safe tilt range - TILT_NOD_UP
+# has plenty of headroom to TILT_MIN (60) though, so that side is widened
+# to make the nod read as a clear, deliberate gesture instead of a twitch.
+TILT_NOD_UP     = TILT_NATURAL - 30   # degrees UP from natural (- = up, clamped by TILT_MIN)
 TILT_NOD_DOWN   = TILT_NATURAL + 10   # degrees DOWN from natural (+ = down, clamped by TILT_MAX)
 NOD_COUNT       = 2                   # number of nod cycles
 NOD_ALPHA       = 0.45                # blend speed for nod movement (higher = faster)
-NOD_HOLD_SEC    = 0.03                # seconds to hold at each extreme
-NOD_SETTLE_SEC  = 0.00                # seconds to hold at center between nods
+NOD_HOLD_SEC    = 0.18                # seconds to hold at each extreme (was 0.03 - too brief to register)
+NOD_SETTLE_SEC  = 0.12                # seconds to hold at center between nods (was 0 - reps blurred together)
 
-# Look-around settings  ← slow left/right glance, done once before nodding
-LOOK_PAN_OFFSET = 20                  # degrees left/right from home to look (clamped by PAN_MIN/MAX)
+# Look-around settings  ← slow left/right glance, done once before nodding.
+# PAN_HOME (108) sits close to PAN_MAX (120), so a single symmetric offset
+# clamps hard on the right (108+20=128 -> clamped to 120, only a 12°
+# glance) while leaving most of the left-side headroom (108-70=38° max)
+# unused. Separate offsets use each side's real travel so both glances are
+# actually visible instead of the right one looking like it barely moved.
+LOOK_PAN_LEFT_OFFSET  = 32            # degrees left from home (clamped by PAN_MIN)
+LOOK_PAN_RIGHT_OFFSET = 12            # degrees right from home (clamped by PAN_MAX)
 LOOK_ALPHA      = 0.06                # blend speed for look movement (low = slow, deliberate)
-LOOK_HOLD_SEC   = 0.35                # seconds to hold gaze at each side before moving on
+LOOK_HOLD_SEC   = 0.4                 # seconds to hold gaze at each side before moving on
 
 # Servo thread smoothing
 # Lower SERVO_ALPHA = smoother / slower blending toward target
@@ -53,9 +65,36 @@ HOME_THRESHOLD = 0.5
 # Servo update rate (Hz)
 SERVO_HZ = 25
 
+# Where the last-known pan/tilt angle is persisted between process runs.
+# The PCA9685 keeps outputting its last PWM signal even after the Python
+# process that set it exits (or is killed, or the Pi loses power) - so on
+# the next run, this file is usually a far better guess of the servo's true
+# physical position than assuming it's already at PAN_HOME/TILT_HOME. That
+# lets __init__ glide home smoothly from wherever it really is instead of
+# snapping straight to home.
+STATE_FILE          = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".pan_tilt_last_position.json")
+STATE_SAVE_INTERVAL = 0.5   # seconds - throttles disk writes during continuous tracking
+
 
 def clamp(v, lo, hi):
     return max(float(lo), min(float(hi), float(v)))
+
+
+def _load_last_position():
+    try:
+        with open(STATE_FILE, "r") as f:
+            data = json.load(f)
+        return clamp(data["pan"], PAN_MIN, PAN_MAX), clamp(data["tilt"], TILT_MIN, TILT_MAX)
+    except Exception:
+        return None
+
+
+def _save_last_position(pan, tilt):
+    try:
+        with open(STATE_FILE, "w") as f:
+            json.dump({"pan": pan, "tilt": tilt}, f)
+    except Exception:
+        pass
 
 
 class PanTiltController:
@@ -73,14 +112,24 @@ class PanTiltController:
         log.info("Initialising PCA9685 ...")
         self.kit   = ServoKit(channels=16)
         self._lock = threading.Lock()
+        self._last_save_t = 0.0
 
-        self._cur_pan  = float(PAN_HOME)
-        self._cur_tilt = float(TILT_HOME)
+        last = _load_last_position()
+        if last is not None:
+            self._cur_pan, self._cur_tilt = last
+            log.info("Resuming from last known position  pan=%.1f  tilt=%.1f", *last)
+        else:
+            self._cur_pan  = float(PAN_HOME)
+            self._cur_tilt = float(TILT_HOME)
+
         self._tgt_pan  = float(PAN_HOME)
         self._tgt_tilt = float(TILT_HOME)
 
-        self._apply(self._cur_pan, self._cur_tilt)
-        log.info("Servos at home  pan=%.1f  tilt=%.1f", self._cur_pan, self._cur_tilt)
+        # Glide to home instead of snapping - the servo may physically be
+        # wherever a previous process (or a power cycle) left it, and the
+        # first PWM write below is what actually moves it, so it needs to
+        # start from the smooth-step loop, not a direct _apply().
+        self.go_home_smooth()
 
     def _apply(self, pan, tilt):
         self.kit.servo[PAN_CHANNEL ].angle = int(round(clamp(pan,  PAN_MIN,  PAN_MAX)))
@@ -111,7 +160,17 @@ class PanTiltController:
             self._cur_pan  = a * self._tgt_pan  + (1.0 - a) * self._cur_pan
             self._cur_tilt = a * self._tgt_tilt + (1.0 - a) * self._cur_tilt
             self._apply(self._cur_pan, self._cur_tilt)
-            return self._cur_pan, self._cur_tilt
+            cur_pan, cur_tilt = self._cur_pan, self._cur_tilt
+
+        # Throttled so continuous tracking doesn't hammer the SD card - a
+        # slightly stale position on a hard crash is an acceptable trade for
+        # not writing to disk at SERVO_HZ.
+        now = time.time()
+        if now - self._last_save_t >= STATE_SAVE_INTERVAL:
+            self._last_save_t = now
+            _save_last_position(cur_pan, cur_tilt)
+
+        return cur_pan, cur_tilt
 
     def go_home_smooth(self):
         """
@@ -132,6 +191,7 @@ class PanTiltController:
                     self._apply(PAN_HOME, TILT_HOME)
                 break
             time.sleep(interval)
+        _save_last_position(PAN_HOME, TILT_HOME)
         log.info("Smooth home complete.")
 
     def go_home_immediate(self):
@@ -141,6 +201,7 @@ class PanTiltController:
             self._cur_pan  = float(PAN_HOME)
             self._cur_tilt = float(TILT_HOME)
             self._apply(PAN_HOME, TILT_HOME)
+        _save_last_position(PAN_HOME, TILT_HOME)
 
     def look_around(self):
         """
@@ -151,11 +212,11 @@ class PanTiltController:
         # Clamp here too (not just inside set_pan_target) so the convergence
         # check below compares against the angle the servo can actually
         # reach - otherwise an out-of-range target (e.g. PAN_HOME +
-        # LOOK_PAN_OFFSET past PAN_MAX) gets silently clamped in
+        # LOOK_PAN_RIGHT_OFFSET past PAN_MAX) gets silently clamped in
         # set_pan_target while this loop keeps waiting for the unclamped
         # value, which the servo can never reach, and hangs forever.
-        left_target  = clamp(PAN_HOME - LOOK_PAN_OFFSET, PAN_MIN, PAN_MAX)
-        right_target = clamp(PAN_HOME + LOOK_PAN_OFFSET, PAN_MIN, PAN_MAX)
+        left_target  = clamp(PAN_HOME - LOOK_PAN_LEFT_OFFSET,  PAN_MIN, PAN_MAX)
+        right_target = clamp(PAN_HOME + LOOK_PAN_RIGHT_OFFSET, PAN_MIN, PAN_MAX)
         log.info("Looking around (pan: %.0f° ↔ %.0f°) ...", left_target, right_target)
         interval  = 1.0 / SERVO_HZ
         threshold = 0.8
@@ -174,7 +235,9 @@ class PanTiltController:
             self._cur_pan = float(PAN_HOME)
             self._tgt_pan = float(PAN_HOME)
             self._apply(self._cur_pan, self._cur_tilt)
+            cur_tilt = self._cur_tilt
 
+        _save_last_position(PAN_HOME, cur_tilt)
         log.info("Look-around complete.")
 
     def nod(self):
@@ -223,7 +286,9 @@ class PanTiltController:
             self._cur_tilt = float(TILT_NATURAL)
             self._tgt_tilt = float(TILT_NATURAL)
             self._apply(self._cur_pan, self._cur_tilt)
+            cur_pan = self._cur_pan
 
+        _save_last_position(cur_pan, TILT_NATURAL)
         log.info("Nod complete.")
 
     @property
