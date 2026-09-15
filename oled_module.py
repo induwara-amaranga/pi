@@ -6,6 +6,7 @@ from luma.oled.device import ssd1306
 from luma.core.render import canvas
 
 from hardware_config import OLED_I2C_ADDRESS, OLED_I2C_PORTS
+import i2c_bus_lock
 
 class OLEDModule:
     _FONT_5X7 = {
@@ -129,10 +130,19 @@ class OLEDModule:
     def _blink_scheduler(self):
         eye_last_blink = time.time()
         while True:
+            if i2c_bus_lock.is_busy():
+                # A startup gesture or the face tracker subprocess is
+                # actively driving the PCA9685 over the same physical I2C
+                # bus (see i2c_bus_lock.py / hardware_config's default
+                # OLED_I2C_PORTS=[4, 1]) - skip redrawing this tick so we
+                # don't contend with its 25Hz servo writes.
+                time.sleep(0.2)
+                continue
+
             if self.display_mode == "aura":
                 self._aura_phase = (self._aura_phase + 1) % 4
                 self._update_display()
-                time.sleep(0.35)
+                time.sleep(0.6)   # was 0.35 - fewer bus writes while idle-animating
                 continue
 
             now = time.time()

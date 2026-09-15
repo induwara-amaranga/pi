@@ -43,6 +43,7 @@ from pan_tilt_controller import (
     TILT_NATURAL,
     SERVO_HZ,
 )
+import i2c_bus_lock
 
 # ───────────────────────────────────────────────────────────────
 # LOGGING
@@ -578,6 +579,11 @@ class RestaurantRobot:
             log.warning("Camera stop error: %s", exc)
 
         cv2.destroyAllWindows()
+
+        # Let main_controller.py's OLED blink thread resume redrawing now
+        # that we're done driving the shared I2C bus (see i2c_bus_lock.py).
+        i2c_bus_lock.clear_busy()
+
         log.info("Done. Goodbye!")
 
 

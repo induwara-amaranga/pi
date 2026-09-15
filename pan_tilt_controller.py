@@ -14,6 +14,8 @@ import time
 
 from adafruit_servokit import ServoKit
 
+import i2c_bus_lock
+
 log = logging.getLogger(__name__)
 
 # Servo channels on PCA9685
@@ -110,6 +112,13 @@ class PanTiltController:
 
     def __init__(self):
         log.info("Initialising PCA9685 ...")
+        # Flag the bus busy before the first write below - main_controller.py's
+        # OLED blink thread (a separate process) shares this bus and checks
+        # this flag to pause its own redraws while we're moving. Whoever
+        # constructs this must call i2c_bus_lock.clear_busy() when done
+        # driving the servos (see pan_tilt_controller.py's __main__ and
+        # robot_face_tracker.py's cleanup()).
+        i2c_bus_lock.mark_busy()
         self.kit   = ServoKit(channels=16)
         self._lock = threading.Lock()
         self._last_save_t = 0.0
@@ -164,11 +173,13 @@ class PanTiltController:
 
         # Throttled so continuous tracking doesn't hammer the SD card - a
         # slightly stale position on a hard crash is an acceptable trade for
-        # not writing to disk at SERVO_HZ.
+        # not writing to disk at SERVO_HZ. Also refreshes the i2c_bus_lock
+        # timestamp so a long tracking session doesn't go stale mid-run.
         now = time.time()
         if now - self._last_save_t >= STATE_SAVE_INTERVAL:
             self._last_save_t = now
             _save_last_position(cur_pan, cur_tilt)
+            i2c_bus_lock.touch()
 
         return cur_pan, cur_tilt
 
@@ -318,19 +329,25 @@ if __name__ == "__main__":
         format="%(asctime)s  %(levelname)-8s  %(message)s",
         datefmt="%H:%M:%S",
     )
-    controller = PanTiltController()
+    try:
+        controller = PanTiltController()
 
-    # Hand nods alongside the head gesture. Runs on its own thread, sharing
-    # controller.kit (the same ServoKit/I2C connection already open for the
-    # head) rather than opening a second one - PCA9685 channel writes go
-    # through Blinka's I2CDevice lock, so concurrent writes to different
-    # channels (hand=15, pan=0, tilt=1) from two threads on one ServoKit
-    # serialize safely instead of racing on the bus.
-    import hand_nod
-    hand_thread = threading.Thread(target=hand_nod.nod, kwargs={"kit": controller.kit}, daemon=True)
-    hand_thread.start()
+        # Hand nods alongside the head gesture. Runs on its own thread,
+        # sharing controller.kit (the same ServoKit/I2C connection already
+        # open for the head) rather than opening a second one - PCA9685
+        # channel writes go through Blinka's I2CDevice lock, so concurrent
+        # writes to different channels (hand=15, pan=0, tilt=1) from two
+        # threads on one ServoKit serialize safely instead of racing on the
+        # bus.
+        import hand_nod
+        hand_thread = threading.Thread(target=hand_nod.nod, kwargs={"kit": controller.kit}, daemon=True)
+        hand_thread.start()
 
-    controller.look_around()
-    controller.nod()
+        controller.look_around()
+        controller.nod()
 
-    hand_thread.join(timeout=5.0)
+        hand_thread.join(timeout=5.0)
+    finally:
+        # Let main_controller.py's OLED blink thread resume redrawing now
+        # that we're done driving the shared I2C bus.
+        i2c_bus_lock.clear_busy()

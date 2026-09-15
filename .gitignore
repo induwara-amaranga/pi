@@ -151,6 +151,7 @@ oled_cache/
 # Servo calibration
 servo_calib.json
 .pan_tilt_last_position.json
+.i2c_bus_busy
 
 # Touch sensor data
 touch_data/
