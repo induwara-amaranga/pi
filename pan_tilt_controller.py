@@ -319,5 +319,18 @@ if __name__ == "__main__":
         datefmt="%H:%M:%S",
     )
     controller = PanTiltController()
+
+    # Hand nods alongside the head gesture. Runs on its own thread, sharing
+    # controller.kit (the same ServoKit/I2C connection already open for the
+    # head) rather than opening a second one - PCA9685 channel writes go
+    # through Blinka's I2CDevice lock, so concurrent writes to different
+    # channels (hand=15, pan=0, tilt=1) from two threads on one ServoKit
+    # serialize safely instead of racing on the bus.
+    import hand_nod
+    hand_thread = threading.Thread(target=hand_nod.nod, kwargs={"kit": controller.kit}, daemon=True)
+    hand_thread.start()
+
     controller.look_around()
     controller.nod()
+
+    hand_thread.join(timeout=5.0)
