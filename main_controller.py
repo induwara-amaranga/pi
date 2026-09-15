@@ -121,8 +121,8 @@ def _touch_worker(
                         sequence_index = 1 if sensor_id == sequence[0] else 0
 
                     if not stop_event.is_set():
-                        #_run_face_tracker_cycle()
-                        pass
+                        _run_face_tracker_cycle()
+                        #pass
 
                     last_sensor = sensor_id
                     last_trigger_time = now
