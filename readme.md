@@ -42,24 +42,6 @@ pi_controller/
 
 ## ⚙️ Setup Instructions
 
-### Raspberry Pi (recommended, one command)
-
-On the Pi itself, run the bundled setup script. It installs all system
-dependencies (I2C, camera, audio libraries), enables the I2C and camera
-interfaces, adds your user to the required hardware groups, creates a
-Python virtual environment, and installs everything in `requirements.txt`
-(including the Adafruit CircuitPython servo stack used for pan/tilt):
-
-```bash
-chmod +x install_pi.sh
-./install_pi.sh
-```
-
-A reboot is required the first time it enables I2C/camera or changes group
-membership; the script will tell you if that's needed.
-
-The steps below are for a manual/dev-machine setup instead.
-
 ### 1. Create Virtual Environment (recommended)
 
 ```bash

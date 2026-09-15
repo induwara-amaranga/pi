@@ -140,8 +140,10 @@ def _cv2_data(filename):
     except Exception:
         return filename
 
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
 CASCADE_PATHS = [
-    "/home/aura/Desktop/py/cascades/haarcascade_frontalface_default.xml",
+    os.path.join(SCRIPT_DIR, "cascades", "haarcascade_frontalface_default.xml"),
     _cv2_data("haarcascade_frontalface_default.xml"),
     _cv2_data("haarcascade_frontalface_alt2.xml"),
     _cv2_data("haarcascade_frontalface_alt.xml"),
