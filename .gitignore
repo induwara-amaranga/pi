@@ -150,6 +150,7 @@ oled_cache/
 
 # Servo calibration
 servo_calib.json
+.pan_tilt_last_position.json
 
 # Touch sensor data
 touch_data/
