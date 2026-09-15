@@ -62,7 +62,61 @@ done
 info "Detected Raspberry Pi OS codename: ${OS_CODENAME} (boot config: ${BOOT_CONFIG:-not found})"
 
 # ---------------------------------------------------------------------------
-# 1. System packages
+# 1. Display backend, screen rotation, and touchscreen calibration
+# ---------------------------------------------------------------------------
+# The touchscreen is mounted upside-down, so both the video output and the
+# touch input need to be inverted to match. xrandr (used below to flip the
+# display) only works under X11, not Wayland, so switch the desktop backend
+# to X11 first.
+
+if command -v raspi-config >/dev/null 2>&1; then
+    info "Switching desktop backend from Wayland to X11 (xrandr needs X11)..."
+    if sudo raspi-config nonint do_wayland W1 2>/dev/null; then
+        REBOOT_REQUIRED=1
+        ok "Desktop backend set to X11."
+    else
+        warn "Could not switch backend via raspi-config nonint do_wayland."
+        warn "Set it manually: sudo raspi-config -> Advanced Options -> Wayland -> X11."
+    fi
+else
+    warn "raspi-config not found - skipping automatic X11 switch."
+fi
+
+if command -v xrandr >/dev/null 2>&1 && [[ -n "${DISPLAY:-}" ]]; then
+    info "Checking current display rotation via xrandr:"
+    xrandr --query | grep --color=never -i 'connected'
+else
+    info "No active X11 session in this shell - can't check xrandr rotation now (check after reboot with: xrandr --query)."
+fi
+
+# Invert touch direction to match the physically-mounted (upside-down)
+# display. swapxy=0 with invx=1,invy=1 flips both axes without swapping them.
+if [[ -n "${BOOT_CONFIG}" ]]; then
+    TOUCH_OVERLAY='dtoverlay=ads7846,cs=1,penirq=25,speed=50000,keep_vref_on=1,swapxy=0,pmax=255,xohms=150,invx=1,invy=1'
+    if ! grep -q '^dtoverlay=ads7846' "${BOOT_CONFIG}"; then
+        echo "${TOUCH_OVERLAY}" | sudo tee -a "${BOOT_CONFIG}" >/dev/null
+        info "Added inverted ads7846 touchscreen overlay to ${BOOT_CONFIG}."
+        REBOOT_REQUIRED=1
+    else
+        info "ads7846 touchscreen overlay already present in ${BOOT_CONFIG} - leaving it untouched."
+    fi
+fi
+
+# Invert the display itself 180 degrees to match the touch inversion above,
+# via an autostart xrandr command (HDMI rotation isn't reliably supported
+# from config.txt on Bookworm's X11/KMS stack).
+info "Writing autostart entry to invert the display via xrandr..."
+mkdir -p "${HOME}/.config/autostart"
+cat > "${HOME}/.config/autostart/rotate-display.desktop" <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=Rotate Display
+Exec=xrandr --output HDMI-2 --rotate inverted
+EOF
+ok "Display rotation autostart entry written to ${HOME}/.config/autostart/rotate-display.desktop."
+
+# ---------------------------------------------------------------------------
+# 2. System packages
 # ---------------------------------------------------------------------------
 
 info "Updating apt package index..."
@@ -116,7 +170,7 @@ sudo apt-get install -y --no-install-recommends rpicam-apps-lite \
     || warn "No rpicam-apps/libcamera-apps package found - not fatal, this only affects the rpicam-hello/libcamera-hello test commands."
 
 # ---------------------------------------------------------------------------
-# 2. Enable I2C and camera interfaces
+# 3. Enable I2C and camera interfaces
 # ---------------------------------------------------------------------------
 # raspi-config's nonint mode lets us flip interface toggles from a script.
 # do_i2c/do_camera return 0 (enabled) if a config change was made. On recent
@@ -150,6 +204,21 @@ if [[ -n "${BOOT_CONFIG}" ]]; then
     fi
 fi
 
+# Second (software/bit-banged) I2C bus for the two OLED displays. The Pi's
+# hardware I2C1 (GPIO2/GPIO3) is shared by both displays by default, which
+# means they collide unless each is jumpered to a distinct address. Putting
+# the second display on its own bit-banged bus (GPIO17=SDA, GPIO27=SCL) via
+# the i2c-gpio overlay avoids that entirely. Shows up as /dev/i2c-4 after
+# reboot.
+if [[ -n "${BOOT_CONFIG}" ]]; then
+    I2C_GPIO_OVERLAY='dtoverlay=i2c-gpio,i2c_gpio_sda=17,i2c_gpio_scl=27,bus=4'
+    if ! grep -q '^dtoverlay=i2c-gpio' "${BOOT_CONFIG}"; then
+        echo "${I2C_GPIO_OVERLAY}" | sudo tee -a "${BOOT_CONFIG}" >/dev/null
+        info "Added software I2C overlay (bus 4, SDA=GPIO17, SCL=GPIO27) to ${BOOT_CONFIG}."
+        REBOOT_REQUIRED=1
+    fi
+fi
+
 # Make sure the i2c-dev kernel module is loaded now (not just on next boot).
 sudo modprobe i2c-dev 2>/dev/null || true
 
@@ -158,7 +227,7 @@ if ! grep -q '^i2c-dev' /etc/modules 2>/dev/null; then
 fi
 
 # ---------------------------------------------------------------------------
-# 3. Group membership for GPIO / I2C / camera / audio access without sudo
+# 4. Group membership for GPIO / I2C / camera / audio access without sudo
 # ---------------------------------------------------------------------------
 
 TARGET_USER="${SUDO_USER:-$USER}"
@@ -177,7 +246,7 @@ done
 ok "Group membership configured."
 
 # ---------------------------------------------------------------------------
-# 4. Python virtual environment
+# 5. Python virtual environment
 # ---------------------------------------------------------------------------
 # --system-site-packages so the apt-installed picamera2/libcamera bindings
 # (which are not reliably pip-installable) are visible inside the venv.
@@ -196,7 +265,7 @@ info "Upgrading pip/setuptools/wheel..."
 pip install --upgrade pip setuptools wheel
 
 # ---------------------------------------------------------------------------
-# 5. Python dependencies (requirements.txt + Adafruit servo stack)
+# 6. Python dependencies (requirements.txt + Adafruit servo stack)
 # ---------------------------------------------------------------------------
 
 info "Installing Python requirements from requirements.txt..."
@@ -214,7 +283,7 @@ deactivate
 ok "Python dependencies installed into ${VENV_DIR}."
 
 # ---------------------------------------------------------------------------
-# 6. Project environment file
+# 7. Project environment file
 # ---------------------------------------------------------------------------
 
 if [[ ! -f "${SCRIPT_DIR}/.env" && -f "${SCRIPT_DIR}/.env.example" ]]; then
@@ -232,7 +301,8 @@ echo
 ok "Setup complete."
 echo "  Activate the environment with:  source ${VENV_DIR}/bin/activate"
 echo "  Run the controller with:        python main_controller.py"
-echo "  Check I2C devices with:         i2cdetect -y 1"
+echo "  Check I2C devices with:         i2cdetect -y 1   (hardware bus, GPIO2/3)"
+echo "                                   i2cdetect -y 4   (software bus, GPIO17/27)"
 
 if [[ "${REBOOT_REQUIRED}" -eq 1 ]]; then
     echo
