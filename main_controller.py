@@ -16,6 +16,7 @@ from hardware_config import GPIO_MODE, TOUCH_SEQUENCE
 from touch_module import TouchModule
 from stepper_module import StepperModule
 from body_rotate_new import BodyRotationController
+from pan_tilt_controller import PanTiltController
 
 # Set global GPIO mode before initializing modules
 GPIO.setwarnings(False)
@@ -59,7 +60,20 @@ def start_websocket_server(mqtt_bot):
 #     loop.run_until_complete(start_server)
 #     loop.run_forever()
 
+def _run_startup_gesture():
+    """Look around, then nod — greets whoever triggered a face tracker cycle
+    before the pan/tilt head hands control over to the tracker subprocess."""
+    print("Running startup gesture (look around + head nod) ...")
+    try:
+        gesture_servo = PanTiltController()
+        gesture_servo.look_around()
+        gesture_servo.nod()
+    except Exception as e:
+        print(f"Startup gesture failed: {e}")
+
 def _run_face_tracker_cycle():
+    _run_startup_gesture()
+
     tracker_script = os.path.join(os.path.dirname(__file__), "robot_face_tracker.py")
     max_seconds = os.getenv("FACE_TRACKER_MAX_SECONDS", "30")
     command = [
